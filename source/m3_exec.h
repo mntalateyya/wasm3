@@ -42,6 +42,12 @@
 #define nextOpDirect()              ((IM3Operation)(* _pc))(_pc + 1, d_m3OpArgs)
 #define jumpOpDirect(PC)            ((IM3Operation)(*  PC))( PC + 1, d_m3OpArgs)
 
+
+void m3_migration_init(IM3Runtime);
+extern volatile bool m3_migration_flag;
+M3Result m3_dump_state(d_m3OpSig);
+M3Result m3_resume_state(IM3Runtime _runtime);
+
 # if d_m3EnableOpProfiling
 
 d_m3RetSig  profileOp  (d_m3OpSig, cstr_t i_operationName);
@@ -556,22 +562,28 @@ d_m3Op  (ContinueLoop)
     // TODO: this is where execution can "escape" the M3 code and callback to the client / fiber switch
     // OR it can go in the Loop operation. I think it's best to do here. adding code to the loop operation
     // has the potential to increase its native-stack usage. (don't forget ContinueLoopIf too.)
-    
-    void * loopId = immediate (void *);
-    return loopId;
+    pc_t next = immediate(pc_t);
+    _pc = next;
+    if (m3_migration_flag)
+		m3_dump_state(d_m3OpAllArgs);
+    return nextOp();
+    //void * loopId = immediate (void *);
+    //return loopId;
 }
 
 
 d_m3Op  (ContinueLoopIf)
 {
     i32 condition = (i32) _r0;
-    void * loopId = immediate (void *);
+    pc_t next = immediate (pc_t);
 
     if (condition)
     {
-        return loopId;
+        _pc = next;
+        if (m3_migration_flag)
+            m3_dump_state(d_m3OpAllArgs);
     }
-    else return nextOp ();
+    return nextOp ();
 }
 
 
@@ -913,7 +925,5 @@ d_m3RetSig  profileOp  (d_m3OpSig, cstr_t i_operationName)
     return nextOpDirect();
 }
 # endif
-
-
 
 #endif /* m3_exec_h */

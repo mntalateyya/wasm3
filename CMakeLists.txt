@@ -117,7 +117,8 @@ else()
   set(CMAKE_EXE_LINKER_FLAGS_DEBUG "-O0")
   set(CMAKE_EXE_LINKER_FLAGS_RELEASE "-O3")
 
-  target_link_libraries(${OUT_FILE} m)
+  find_package (Threads)
+  target_link_libraries(${OUT_FILE} m ${CMAKE_THREAD_LIBS_INIT})
 endif()
 
 check_ipo_supported(RESULT result)

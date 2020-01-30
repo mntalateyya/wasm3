@@ -572,7 +572,9 @@ M3Result  m3_CallWithArgs  (IM3Function i_function, uint32_t i_argc, const char 
         m3logif (runtime, PrintFuncTypeSignature (ftype));
 
         if (i_argc != ftype->numArgs) {
-            _throw("arguments count mismatch");
+            char str[100];
+            sprintf(str, "arguments count mismatch %d != %d", i_argc, ftype->numArgs);
+            _throw(str);
         }
 
         // The format is currently not user-friendly by default,

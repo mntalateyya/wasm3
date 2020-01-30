@@ -251,20 +251,23 @@ d_m3OpDef  (SetGlobal_i)
 
 d_m3OpDef  (Loop)
 {
-    m3ret_t r;
-
-    IM3Memory memory = GetMemoryInfo (_mem);
-    
-    do
-    {
-        // linear memory pointer needs refreshed here because the block it's loop over
-        // can potentially invoke the grow operator.
-        r = nextOp ();                     // printf ("loop: %p\n", r);
-        _mem = memory->mallocated;
-    }
-    while (r == _pc);
-
-    return r;
+    return nextOp();
+    //m3ret_t r;
+//
+    //IM3Memory memory = GetMemoryInfo (_mem);
+    //
+    //do
+    //{
+    //    // linear memory pointer needs refreshed here because the block it's loop over
+    //    // can potentially invoke the grow operator.
+    //    r = nextOp ();                     // printf ("loop: %p\n", r);
+    //    _mem = memory->mallocated;
+	//	if (m3_migration_flag)
+	//		m3_log_state(d_m3OpAllArgs);
+    //}
+    //while (r == _pc);
+//
+    //return r;
 }
 
 
