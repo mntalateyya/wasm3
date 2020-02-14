@@ -6,6 +6,7 @@
 #include "m3_api_wasi.h"
 #include "m3_api_libc.h"
 #include "m3_env.h"
+#include "m3_migrate.h"
 
 #define FATAL(msg, ...) { printf("Error: [Fatal] " msg "\n", ##__VA_ARGS__); goto _onfatal; }
 
@@ -66,7 +67,7 @@ M3Result repl_call  (IM3Runtime runtime, const char* name, int argc, const char*
             return "passing arguments to libc main() not implemented";
         }
     }
-    //m3_resume_state(runtime);
+    m3_resume_state(runtime);
     //m3_migration_init(runtime);
 
     result = m3_CallWithArgs (func, argc, argv);

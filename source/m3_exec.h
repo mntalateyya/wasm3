@@ -15,6 +15,7 @@
 
 #include "m3_exec_defs.h"
 #include "m3_math_utils.h"
+#include "m3_migrate.h"
 
 #include <math.h>
 #include <limits.h>
@@ -41,12 +42,6 @@
 
 #define nextOpDirect()              ((IM3Operation)(* _pc))(_pc + 1, d_m3OpArgs)
 #define jumpOpDirect(PC)            ((IM3Operation)(*  PC))( PC + 1, d_m3OpArgs)
-
-
-void m3_migration_init(IM3Runtime);
-extern volatile bool m3_migration_flag;
-M3Result m3_dump_state(d_m3OpSig);
-M3Result m3_resume_state(IM3Runtime _runtime);
 
 # if d_m3EnableOpProfiling
 
@@ -564,8 +559,9 @@ d_m3Op  (ContinueLoop)
     // has the potential to increase its native-stack usage. (don't forget ContinueLoopIf too.)
     pc_t next = immediate(pc_t);
     _pc = next;
-    if (m3_migration_flag)
+    if (m3_migration_flag()) {
 		m3_dump_state(d_m3OpAllArgs);
+    }
     return nextOp();
     //void * loopId = immediate (void *);
     //return loopId;
@@ -580,7 +576,7 @@ d_m3Op  (ContinueLoopIf)
     if (condition)
     {
         _pc = next;
-        if (m3_migration_flag)
+        if (m3_migration_flag())
             m3_dump_state(d_m3OpAllArgs);
     }
     return nextOp ();
