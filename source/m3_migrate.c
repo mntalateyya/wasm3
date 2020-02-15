@@ -1,25 +1,40 @@
-#define _BSD_SOURCE
+#define _DEFAULT_SOURCE
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <setjmp.h>
 
 #include "m3.h"
 #include "m3_env.h"
 
 static volatile bool migration_flag = false;
+static jmp_buf jmp_env;
 
 bool m3_migration_flag() {
 	return migration_flag;
 }
 
-void *migration_clock(FILE *input) {
+void jump_return(d_m3OpSig) {
+	longjmp(jmp_env, 1);
+}
+
+void jmp_start(d_m3OpSig) {
+	if (setjmp(jmp_env) == 0) {
+		void *ptr = jump_return;
+		_cs->pc = &ptr;
+		_cs++;
+		Call(d_m3OpAllArgs);
+	}
+}
+
+void *migration_clock(void *_ign) {
 	usleep(100);
 	migration_flag = true;
 	printf("[migration thread woke up]\n");
 	while(1)
-		usleep(10000000);
+		usleep(100);
 	return NULL;
 }
 
@@ -36,23 +51,29 @@ M3Result m3_dump_state(d_m3OpSig) {
 	        "_mem: %p\n"
 			"_r0: %ld\n"
 			"_fp0: %lf\n"
-			"stack: %p\n",
-			d_m3OpAllArgs, runtime->stack);
+			"_cs: %p\n"
+			"stack: %p\n"
+			"callstack: %p\n",
+			d_m3OpAllArgs, runtime->stack, runtime->callStack);
 	IM3Function func;
-    m3_FindFunction (&func, runtime, "main");
+    m3_FindFunction (&func, runtime, "fib");
 	FILE *out = fopen("wasm3dump", "w");
-	_pc = (u64)_pc - (u64)func->compiled;
+	_pc = (i64)_pc - (i64)func->compiled;
 	fwrite(&_pc, sizeof(_pc), 1, out);
-	_sp = (u64)_sp - (u64)runtime->stack;
+	_sp = (i64)_sp - (i64)runtime->stack;
 	fwrite(&_sp, sizeof(_sp), 1, out);
 	fwrite(&_mem, sizeof(_mem), 1, out);
 	fwrite(&_r0, sizeof(_r0), 1, out);
 	fwrite(&_fp0, sizeof(_fp0), 1, out);
+	_cs = (i64)_cs - (i64)runtime->callStack;
+	fwrite(&_cs, sizeof(_cs), 1, out);
 	fwrite(&runtime->numStackSlots, sizeof(runtime->numStackSlots), 1, out);
 	fwrite(runtime->stack, sizeof(m3reg_t), runtime->numStackSlots, out);
 	fwrite(&runtime->memory.numPages, sizeof(runtime->memory.numPages), 1, out);
 	fwrite(runtime->memory.mallocated+1,
-	       runtime->memory.numPages * c_m3MemPageSize, 1, out);
+	       c_m3MemPageSize, runtime->memory.numPages, out);
+	fwrite(&runtime->callStackSize, sizeof(runtime->callStackSize), 1, out);
+	fwrite(runtime->callStack, sizeof(cs_frame), runtime->callStackSize, out);
 	fclose(out);
 	exit(0);
 }
@@ -70,6 +91,7 @@ M3Result m3_resume_state(IM3Runtime runtime) {
 	M3MemoryHeader *_mem, *ignore;
 	m3reg_t _r0;
 	f64 _fp0;
+	cs_frame * _cs;
 
 	FILE *f = fopen("wasm3dump", "r");
 
@@ -82,6 +104,8 @@ M3Result m3_resume_state(IM3Runtime runtime) {
 	_mem = runtime->memory.mallocated;
 	fread(&_r0, sizeof(_r0), 1, f);
 	fread(&_fp0, sizeof(_fp0), 1, f);
+	fread(&_cs, sizeof(_cs), 1, f);
+	_cs = (u64)_cs + 0x0 /* XXX function has to be pre-compiled */ ;
 
 	// load stack
 	u32 stack_size;
@@ -95,12 +119,19 @@ M3Result m3_resume_state(IM3Runtime runtime) {
 	fread(runtime->memory.mallocated+1,
 	      runtime->memory.numPages * c_m3MemPageSize, 1, f);
 
+	u32 s;
+	fread(&s, sizeof(runtime->callStackSize), 1, f);
+	assert(s <= runtime->callStackSize);
+	runtime->callStackSize = s;
+	fread(runtime->callStack, sizeof(cs_frame), s, f);
+
 	printf("[resumed state]\n");
 	printf( "_pc: %p\n"
 	        "_sp: %p\n"
 	        "_mem: %p\n"
 			"_r0: %ld\n"
 			"_fp0: %lf\n"
+			"_cs: %p\n"
 			"stack: %p\n",
 			d_m3OpAllArgs, runtime->stack);
 	

@@ -484,7 +484,14 @@ d_m3Select_f (f64, _fp0, s, slot (i32))
 d_m3Op  (Return)
 {
     m3StackCheck();
-    return NULL;
+    _cs--;
+    _pc = _cs->pc;
+    _sp = _cs->sp;
+    _r0 = _cs->r;
+    _fp0 = _cs->fp;
+
+    return nextOp();
+
 }
 
 

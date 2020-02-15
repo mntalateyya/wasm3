@@ -142,6 +142,8 @@ M3CodePageHeader;
 #define c_m3MemPageSize                     65536
 #define c_m3MaxFunctionStackHeight          d_m3MaxFunctionStackHeight
 
+#define c_m3CallStackSize                   65536
+
 #define c_m3Reg0SlotAlias                   c_m3MaxFunctionStackHeight + 1
 #define c_m3Fp0SlotAlias                    c_m3MaxFunctionStackHeight + 2
 

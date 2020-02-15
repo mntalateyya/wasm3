@@ -37,16 +37,22 @@ d_m3OpDef  (Call)
     i32 stackOffset             = immediate (i32);
     IM3Memory memory            = GetMemoryInfo (_mem);
 
+    _cs->pc = _pc;
+    _cs->sp = _sp;
+    _cs->r = _r0;
+    _cs->fp = _fp0;
+    _cs++;
+
     m3stack_t sp = _sp + stackOffset;
 
-    m3ret_t r = Call (callPC, sp, _mem, d_m3OpDefaultArgs);
+    return Call (callPC, sp, _mem, d_m3OpDefaultArgs, _cs);
 
-    if (r == 0)
-    {
-        _mem = memory->mallocated;
-        return nextOp ();
-    }
-    else return r;
+    //if (r == 0)
+    //{
+    //    _mem = memory->mallocated;
+    //    return nextOp ();
+    //}
+    //else return r;
 }
 
 
@@ -95,13 +101,19 @@ d_m3OpDef  (CallIndirect)
 
             if (not r)
             {
-                r = Call (function->compiled, sp, _mem, d_m3OpDefaultArgs);
+                _cs->pc = _pc;
+                _cs->sp = _sp;
+                _cs->r = _r0;
+                _cs->fp = _fp0;
+                _cs++;
 
-                if (not r)
-                {
-                    _mem = memory->mallocated;
-                    r = nextOp ();
-                }
+                return Call (function->compiled, sp, _mem, d_m3OpDefaultArgs, _cs);
+
+                //if (not r)
+                //{
+                //    _mem = memory->mallocated;
+                //    r = nextOp ();
+                //}
             }
         }
         else r = "trap: table element is null";

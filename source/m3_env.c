@@ -109,6 +109,14 @@ IM3Runtime  m3_NewRuntime  (IM3Environment i_environment, u32 i_stackSizeInBytes
     {
 		runtime->environment = i_environment;
 		
+        runtime->callStack = malloc(sizeof(cs_frame) * c_m3CallStackSize); // TODO macro
+        if (runtime->callStack) {
+            runtime->callStackSize = c_m3CallStackSize;
+        } else {
+            perror("Malloc Failed\n");
+            exit(-1);
+        }
+
         m3Malloc (& runtime->stack, i_stackSizeInBytes);
 
         if (runtime->stack)
@@ -193,6 +201,7 @@ M3Result  EvaluateExpression  (IM3Module i_module, void * o_expressed, u8 i_type
     M3Result result = c_m3Err_none;
 
     u64 stack [c_m3MaxFunctionStackHeight]; // stack on the stack
+    cs_frame callStack [1024]; // TODO: macro for size
 
     // create a temporary runtime context
     M3Runtime runtime;
@@ -223,7 +232,8 @@ M3Result  EvaluateExpression  (IM3Module i_module, void * o_expressed, u8 i_type
 
         if (not result)
         {
-            m3ret_t r = Call (m3code, stack, NULL, d_m3OpDefaultArgs);
+            // todo fix hacks
+            m3ret_t r = 0; jmp_start (m3code, stack, NULL, d_m3OpDefaultArgs, callStack);
             result = runtime.runtimeError;
 
             if (r == 0 and not result)
@@ -599,7 +609,8 @@ M3Result  m3_CallWithArgs  (IM3Function i_function, uint32_t i_argc, const char 
         }
 
         m3StackCheckInit();
-_       ((M3Result)Call (i_function->compiled, stack, runtime->memory.mallocated, d_m3OpDefaultArgs));
+        (jmp_start(i_function->compiled, stack, runtime->memory.mallocated, d_m3OpDefaultArgs, runtime->callStack));
+        // Todo catch exception removed, restore
 
 #if d_m3LogOutput
         switch (ftype->returnType) {
