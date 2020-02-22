@@ -12,8 +12,17 @@
 #include "m3_core.h"
 
 typedef struct {
-    pc_t pc;
-    u64 sp;
+    union {
+        pc_t pc;
+        struct {
+            u32 fn_id;
+            u32 pc_offset;
+        };
+    };
+    union {
+        u64 *sp;
+        u32 sp_offset;
+    };
     u64 r;
     f64 fp;
 } cs_frame;

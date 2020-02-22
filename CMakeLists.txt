@@ -111,7 +111,7 @@ else()
   elseif(CMAKE_C_COMPILER_ID MATCHES "GNU")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wjump-misses-init")
   endif()
-  set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -ggdb -O0")
+  set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -ggdb -Og")
 
   set(CMAKE_C_FLAGS_RELEASE "-O3 -march=native -Wfatal-errors -fstrict-aliasing") #-fno-inline -fomit-frame-pointer
   set(CMAKE_EXE_LINKER_FLAGS_DEBUG "-O0")

@@ -109,7 +109,7 @@ IM3Runtime  m3_NewRuntime  (IM3Environment i_environment, u32 i_stackSizeInBytes
     {
 		runtime->environment = i_environment;
 		
-        runtime->callStack = malloc(sizeof(cs_frame) * c_m3CallStackSize); // TODO macro
+        runtime->callStack = malloc(sizeof(cs_frame) * c_m3CallStackSize);
         if (runtime->callStack) {
             runtime->callStackSize = c_m3CallStackSize;
         } else {
@@ -210,6 +210,7 @@ M3Result  EvaluateExpression  (IM3Module i_module, void * o_expressed, u8 i_type
     runtime.environment = i_module->runtime->environment;
     runtime.numStackSlots = c_m3MaxFunctionStackHeight;
     runtime.stack = & stack;
+    runtime.callStack = callStack;
 
     IM3Runtime savedRuntime = i_module->runtime;
     i_module->runtime = & runtime;
@@ -232,8 +233,9 @@ M3Result  EvaluateExpression  (IM3Module i_module, void * o_expressed, u8 i_type
 
         if (not result)
         {
-            // todo fix hacks
-            m3ret_t r = 0; jmp_start (m3code, stack, NULL, d_m3OpDefaultArgs, callStack);
+            // TODO fix hacks
+            M3MemoryHeader mem = {&runtime, 0, 0};
+            m3ret_t r = 0; jmp_start (m3code, stack, &mem, d_m3OpDefaultArgs, callStack);
             result = runtime.runtimeError;
 
             if (r == 0 and not result)
