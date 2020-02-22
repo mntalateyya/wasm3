@@ -84,7 +84,7 @@ void *migration_clock(void *_ign) {
 	migration_flag = true;
 	printf("[migration thread woke up]\n");
 	while(1)
-		usleep(100);
+		usleep(100000);
 	return NULL;
 }
 
@@ -206,7 +206,7 @@ M3Result m3_resume_state(IM3Runtime runtime) {
 		if (not functions[cf->fn_id].compiled)
         	result = Compile_Function(functions+cf->fn_id);
 		cf->pc = (u64)functions[cf->fn_id].compiled+cf->pc_offset;
-		cf->sp = (char *)runtime->callStack + cf->sp_offset;
+		cf->sp = (char *)runtime->stack + cf->sp_offset;
 	}
 	_pc = (u64)functions[fn_id].compiled + pc_offset;
 
