@@ -130,7 +130,11 @@ d_m3OpDef  (CallRawFunction)
     IM3Runtime runtime = GetRuntime (_mem);
     
     m3ret_t possible_trap = call (runtime, _sp, m3MemData(_mem));
-    return possible_trap;
+    if (possible_trap)
+        return possible_trap;
+    else
+        return nextOp();
+    
 }
 
 
