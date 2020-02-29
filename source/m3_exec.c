@@ -133,6 +133,11 @@ d_m3OpDef  (CallRawFunction)
     if (possible_trap)
         return possible_trap;
     else
+        _cs--;
+        _pc = _cs->pc;
+        _sp = _cs->sp;
+        _r0 = _cs->r;
+        _fp0 = _cs->fp;
         return nextOp();
     
 }
