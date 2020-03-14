@@ -7,7 +7,7 @@
 
 void jmp_start(d_m3OpSig);
 void jump_return(d_m3OpSig);
-void m3_migration_init();
+void m3_migration_init(const char*);
 bool m3_migration_flag();
 M3Result m3_dump_state(d_m3OpSig);
 M3Result m3_resume_state(IM3Runtime runtime);

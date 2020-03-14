@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "m3.h"
 #include "m3_api_wasi.h"
@@ -67,8 +68,6 @@ M3Result repl_call  (IM3Runtime runtime, const char* name, int argc, const char*
             return "passing arguments to libc main() not implemented";
         }
     }
-    //m3_resume_state(runtime);
-    //m3_migration_init(runtime);
 
     result = m3_CallWithArgs (func, argc, argv);
     if (result) return result;
@@ -172,6 +171,8 @@ int  main  (int i_argc, const char* i_argv[])
     const char* argFile = NULL;
     const char* argFunc = "_start";
 
+    const char* stateFile = NULL;
+
 //    m3_PrintM3Info ();
 
     ARGV_SHIFT(); // Skip executable name
@@ -192,6 +193,8 @@ int  main  (int i_argc, const char* i_argv[])
             argRepl = true;
         } else if (!strcmp("--func", arg) or !strcmp("-f", arg)) {
             ARGV_SET(argFunc);
+        } else if (!strcmp("--state", arg)) {
+            ARGV_SET(stateFile);
         }
     }
 
@@ -218,11 +221,19 @@ int  main  (int i_argc, const char* i_argv[])
         if (result) FATAL("m3_LinkLibC: %s", result);
 
         if (argFunc and not argRepl) {
-            if (!strcmp(argFunc, "_start")) {
-                // When passing args to WASI, include wasm filename as argv[0]
-                result = repl_call(runtime, argFunc, i_argc+1, i_argv-1);
+            if (access(stateFile, F_OK) != -1) {
+                printf("Resuming execution from %s\n", stateFile);
+                result = m3_resume_state(runtime);
             } else {
-                result = repl_call(runtime, argFunc, i_argc, i_argv);
+                if (stateFile != NULL) {
+                    m3_migration_init(stateFile);
+				}
+                if (!strcmp(argFunc, "_start")) {
+                    // When passing args to WASI, include wasm filename as argv[0]
+                    result = repl_call(runtime, argFunc, i_argc+1, i_argv-1);
+                } else {
+                    result = repl_call(runtime, argFunc, i_argc, i_argv);
+                }
             }
             if (result) FATAL("repl_call: %s", result);
         }

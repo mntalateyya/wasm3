@@ -9,6 +9,7 @@
 #include "m3.h"
 #include "m3_env.h"
 
+static const char *StateFile = NULL;
 static volatile bool migration_flag = false;
 static jmp_buf jmp_env;
 static struct FnIndex {
@@ -80,15 +81,16 @@ void find_fn(pc_t pc, u32 *fn_id, u32 *offset) {
 }
 
 void *migration_clock(void *_ign) {
-	usleep(100);
-	migration_flag = true;
+	char *tosleep = getenv("SLEEP");
+	int i_tosleep = atoi(tosleep);
+	usleep(i_tosleep);
 	printf("[migration thread woke up]\n");
-	while(1)
-		usleep(100000);
+	migration_flag = true;
 	return NULL;
 }
 
-void m3_migration_init() {
+void m3_migration_init(const char *stateFile) {
+	StateFile = stateFile;
 	pthread_t tid;
 	pthread_create(&tid, NULL, migration_clock, stdin);
 }
@@ -108,7 +110,7 @@ M3Result m3_dump_state(d_m3OpSig) {
 
 	build_fn_index(runtime);	
 
-	FILE *out = fopen("wasm3dump", "w");
+	FILE *out = fopen(StateFile, "w");
 
 	u32 fn_id, pc_offset, sp_offset;
 
@@ -170,7 +172,7 @@ M3Result m3_resume_state(IM3Runtime runtime) {
 
 	u32 fn_id, pc_offset, sp_offset, cs_size;
 
-	FILE *f = fopen("wasm3dump", "r");
+	FILE *f = fopen(StateFile, "r");
 
 	// load basic registers
 	fread(&fn_id, sizeof(fn_id), 1, f);
@@ -223,6 +225,5 @@ M3Result m3_resume_state(IM3Runtime runtime) {
 	jmp_start(d_m3OpAllArgs);
 	u64 * stack = runtime->stack;
 	printf("[%ld, %ld, ...]\n", stack[0], stack[1]);
-	exit(0);
 	return NULL;
 }
