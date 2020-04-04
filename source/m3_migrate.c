@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <setjmp.h>
+#include <sys/time.h>
 
 #include "m3.h"
 #include "m3_env.h"
@@ -95,8 +96,20 @@ void m3_migration_init(const char *stateFile) {
 	pthread_create(&tid, NULL, migration_clock, stdin);
 }
 
+// https://stackoverflow.com/a/44896326/7119758
+long long microtime(void) {
+    struct timeval tv;
+
+    gettimeofday(&tv,NULL);
+    return (((long long)tv.tv_sec)*1000000) + tv.tv_usec;
+}
+
 M3Result m3_dump_state(d_m3OpSig) {
+
+	long long start = microtime();
+
 	IM3Runtime runtime = _mem->runtime;
+	/*
 	printf("[dumping state]\n");
 	printf( "_pc:\t%p\n"
 	        "_sp:\t%p\n"
@@ -107,6 +120,7 @@ M3Result m3_dump_state(d_m3OpSig) {
 			"stack:\t%p\n"
 			"callstack:\t%p\n",
 			d_m3OpAllArgs, runtime->stack, runtime->callStack);
+	*/
 
 	build_fn_index(runtime);	
 
@@ -127,8 +141,12 @@ M3Result m3_dump_state(d_m3OpSig) {
 	fwrite(&cs_size, sizeof(cs_size), 1, out);
 
 	// value stack
-	fwrite(&runtime->numStackSlots, sizeof(runtime->numStackSlots), 1, out);
-	fwrite(runtime->stack, sizeof(m3reg_t), runtime->numStackSlots, out);
+	m3reg_t *sp_end = (m3reg_t *)runtime->stack + runtime->numStackSlots;
+	while (sp_end > runtime->stack && !sp_end[-1])
+		sp_end--;
+	u32 stack_size = sp_end - (m3reg_t *)runtime->stack;
+	fwrite(&stack_size, sizeof(u32), 1, out);
+	fwrite(runtime->stack, sizeof(m3reg_t), stack_size, out);
 
 	// memory
 	fwrite(&runtime->memory.numPages, sizeof(runtime->memory.numPages), 1, out);
@@ -147,7 +165,7 @@ M3Result m3_dump_state(d_m3OpSig) {
 	}
 	fwrite(runtime->callStack, sizeof(cs_frame), cs_size, out);
 
-	fclose(out);
+	/*
 	printf(
 		"pc offset: %d\n"
 		"sp offset: %d\n"
@@ -156,16 +174,23 @@ M3Result m3_dump_state(d_m3OpSig) {
 		sp_offset,
 		cs_size
 	);
+	*/
+
+	printf("serialize-time: %lld\ntotal-size: %ld\nvcs-size: %lld\n",
+		microtime()-start, ftell(out), cs_size);
+	fclose(out);
 	exit(0);
 }
 
 // TODO: worry about allocations when loading memory and stack 
 M3Result m3_resume_state(IM3Runtime runtime) {
+	long long start = microtime();
+
 	M3Result result = c_m3Err_none;
 
 	pc_t _pc;
 	u64 *_sp;
-	M3MemoryHeader *_mem = runtime->memory.mallocated;
+	M3MemoryHeader *_mem;
 	m3reg_t _r0;
 	f64 _fp0;
 	cs_frame * _cs;
@@ -193,9 +218,12 @@ M3Result m3_resume_state(IM3Runtime runtime) {
 	// load memory
 	u32 mem_pages;
 	fread(&mem_pages, sizeof(mem_pages), 1, f);
-	assert(mem_pages <= runtime->memory.numPages);
+	if (mem_pages > runtime->memory.numPages) {
+		ResizeMemory(runtime, mem_pages);
+	}
 	fread(runtime->memory.mallocated+1,
 	      mem_pages * c_m3MemPageSize, 1, f);
+	_mem = runtime->memory.mallocated;
 
 	// load cs & call stack
 	assert(cs_size <= runtime->callStackSize);
@@ -210,8 +238,11 @@ M3Result m3_resume_state(IM3Runtime runtime) {
 		cf->pc = (u64)functions[cf->fn_id].compiled+cf->pc_offset;
 		cf->sp = (char *)runtime->stack + cf->sp_offset;
 	}
+	if (not functions[fn_id].compiled)
+		result = Compile_Function(functions+fn_id);
 	_pc = (u64)functions[fn_id].compiled + pc_offset;
 
+	/*
 	printf("[resumed state]\n");
 	printf( "_pc: %p\n"
 	        "_sp: %p\n"
@@ -221,9 +252,11 @@ M3Result m3_resume_state(IM3Runtime runtime) {
 			"_cs: %p\n"
 			"stack: %p\n",
 			d_m3OpAllArgs, runtime->stack);
+	*/
 	
+	printf("deserial-time: %lld\n", microtime()-start);
 	jmp_start(d_m3OpAllArgs);
 	u64 * stack = runtime->stack;
-	printf("[%ld, %ld, ...]\n", stack[0], stack[1]);
+	printf("Result: [%ld]\n", stack[0]);
 	return NULL;
 }

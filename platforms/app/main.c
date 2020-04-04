@@ -221,19 +221,16 @@ int  main  (int i_argc, const char* i_argv[])
         if (result) FATAL("m3_LinkLibC: %s", result);
 
         if (argFunc and not argRepl) {
-            if (access(stateFile, F_OK) != -1) {
+            if (stateFile != NULL)
+                m3_migration_init(stateFile);
+            if (stateFile && access(stateFile, F_OK) != -1) {
                 printf("Resuming execution from %s\n", stateFile);
                 result = m3_resume_state(runtime);
+            } else if (!strcmp(argFunc, "_start")) {
+                // When passing args to WASI, include wasm filename as argv[0]
+                result = repl_call(runtime, argFunc, i_argc+1, i_argv-1);
             } else {
-                if (stateFile != NULL) {
-                    m3_migration_init(stateFile);
-				}
-                if (!strcmp(argFunc, "_start")) {
-                    // When passing args to WASI, include wasm filename as argv[0]
-                    result = repl_call(runtime, argFunc, i_argc+1, i_argv-1);
-                } else {
-                    result = repl_call(runtime, argFunc, i_argc, i_argv);
-                }
+                result = repl_call(runtime, argFunc, i_argc, i_argv);
             }
             if (result) FATAL("repl_call: %s", result);
         }
