@@ -141,12 +141,8 @@ M3Result m3_dump_state(d_m3OpSig) {
 	fwrite(&cs_size, sizeof(cs_size), 1, out);
 
 	// value stack
-	m3reg_t *sp_end = (m3reg_t *)runtime->stack + runtime->numStackSlots;
-	while (sp_end > runtime->stack && !sp_end[-1])
-		sp_end--;
-	u32 stack_size = sp_end - (m3reg_t *)runtime->stack;
-	fwrite(&stack_size, sizeof(u32), 1, out);
-	fwrite(runtime->stack, sizeof(m3reg_t), stack_size, out);
+	fwrite(&runtime->numStackSlots, sizeof(runtime->numStackSlots), 1, out);
+	fwrite(runtime->stack, sizeof(m3reg_t), runtime->numStackSlots, out);
 
 	// memory
 	fwrite(&runtime->memory.numPages, sizeof(runtime->memory.numPages), 1, out);
