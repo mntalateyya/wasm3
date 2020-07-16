@@ -2,13 +2,34 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <pthread.h>
-#include <unistd.h>
 #include <setjmp.h>
 #include <sys/time.h>
 
+#ifdef WIN32
+#include <windows.h>
+#else
+#include <pthread.h>
+#include <unistd.h>
+#endif
+
 #include "m3.h"
 #include "m3_env.h"
+
+#ifdef WIN32
+//https://stackoverflow.com/questions/5801813/c-usleep-is-obsolete-workarounds-for-windows-mingw
+void usleep(__int64 usec) 
+{ 
+    HANDLE timer; 
+    LARGE_INTEGER ft; 
+
+    ft.QuadPart = -(10*usec); // Convert to 100 nanosecond interval, negative value indicates relative time
+
+    timer = CreateWaitableTimer(NULL, TRUE, NULL); 
+    SetWaitableTimer(timer, &ft, 0, NULL, NULL, 0); 
+    WaitForSingleObject(timer, INFINITE); 
+    CloseHandle(timer); 
+}
+#endif
 
 static const char *StateFile = NULL;
 static volatile bool migration_flag = false;
@@ -92,21 +113,28 @@ void *migration_clock(void *_ign) {
 
 void m3_migration_init(const char *stateFile) {
 	StateFile = stateFile;
+#ifdef WIN32
+	CreateThread(NULL, 0, migration_clock, NULL, 0, NULL);
+#else
 	pthread_t tid;
-	pthread_create(&tid, NULL, migration_clock, stdin);
+	pthread_create(&tid, NULL, migration_clock, NULL);
+#endif
 }
 
 // https://stackoverflow.com/a/44896326/7119758
-long long microtime(void) {
-    struct timeval tv;
-
+long long millitime(void) {
+#ifdef WIN32
+	return GetTickCount();
+#else
+	struct timeval tv;
     gettimeofday(&tv,NULL);
     return (((long long)tv.tv_sec)*1000000) + tv.tv_usec;
+#endif
 }
 
 M3Result m3_dump_state(d_m3OpSig) {
 
-	long long start = microtime();
+	long long start = millitime();
 
 	IM3Runtime runtime = _mem->runtime;
 	/*
@@ -141,9 +169,13 @@ M3Result m3_dump_state(d_m3OpSig) {
 	fwrite(&cs_size, sizeof(cs_size), 1, out);
 
 	// value stack
-	fwrite(&runtime->numStackSlots, sizeof(runtime->numStackSlots), 1, out);
-	fwrite(runtime->stack, sizeof(m3reg_t), runtime->numStackSlots, out);
-
+	m3reg_t *sp_end = (m3reg_t *)runtime->stack + runtime->numStackSlots;
+	while (sp_end > runtime->stack && !sp_end[-1])
+		sp_end--;
+	u32 stack_size = sp_end - (m3reg_t *)runtime->stack;
+	fwrite(&stack_size, sizeof(u32), 1, out);
+	fwrite(runtime->stack, sizeof(m3reg_t), stack_size, out);
+	
 	// memory
 	fwrite(&runtime->memory.numPages, sizeof(runtime->memory.numPages), 1, out);
 	fwrite(runtime->memory.mallocated+1,
@@ -173,14 +205,14 @@ M3Result m3_dump_state(d_m3OpSig) {
 	*/
 
 	printf("serialize-time: %lld\ntotal-size: %ld\nvcs-size: %lld\n",
-		microtime()-start, ftell(out), cs_size);
+		millitime()-start, ftell(out), cs_size);
 	fclose(out);
 	exit(0);
 }
 
 // TODO: worry about allocations when loading memory and stack 
 M3Result m3_resume_state(IM3Runtime runtime) {
-	long long start = microtime();
+	long long start = millitime();
 
 	M3Result result = c_m3Err_none;
 
@@ -250,7 +282,7 @@ M3Result m3_resume_state(IM3Runtime runtime) {
 			d_m3OpAllArgs, runtime->stack);
 	*/
 	
-	printf("deserial-time: %lld\n", microtime()-start);
+	printf("deserial-time: %lld\n", millitime()-start);
 	jmp_start(d_m3OpAllArgs);
 	u64 * stack = runtime->stack;
 	printf("Result: [%ld]\n", stack[0]);
