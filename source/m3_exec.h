@@ -513,10 +513,8 @@ d_m3Op  (BranchIf_r)
     pc_t branch     = immediate (pc_t);
 
     if (condition)
-    {
-        return jumpOp (branch);
-    }
-    else return nextOp ();
+        _pc = branch;
+    return nextOp ();
 }
 
 
@@ -526,10 +524,8 @@ d_m3Op  (BranchIf_s)
     pc_t branch     = immediate (pc_t);
 
     if (condition)
-    {
-        return jumpOp (branch);
-    }
-    else return nextOp ();
+        _pc = branch;
+    return nextOp ();   
 }
 
 

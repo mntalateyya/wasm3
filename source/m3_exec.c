@@ -210,44 +210,43 @@ d_m3OpDef  (Compile)
 
 d_m3OpDef  (Entry)
 {
-#if defined(d_m3SkipStackCheck)
-    if (true)
-#else
-    if ((void *) _sp <= _mem->maxStack)
+#if !defined(d_m3SkipStackCheck)
+    if ((void *) _sp > _mem->maxStack)
+        return c_m3Err_trapStackOverflow;
 #endif
-    {
-        IM3Function function = immediate (IM3Function);
-        function->hits++;                                       m3log (exec, " enter %p > %s %s", _pc - 2, function->name ? function->name : ".unnamed", SPrintFunctionArgList (function, _sp));
+    IM3Function function = immediate (IM3Function);
+    function->hits++;                                       m3log (exec, " enter %p > %s %s", _pc - 2, function->name ? function->name : ".unnamed", SPrintFunctionArgList (function, _sp));
 
-        u32 numLocals = function->numLocals;
+    if (strcmp(function->name, "long std::__2::__libcpp_atomic_refcount_increment<long>(long&)") == 0 &&
+        function->hits > 48)
+        printf("gotcha\n");
+    u32 numLocals = function->numLocals;
 
-        m3stack_t stack = _sp + GetFunctionNumArgs (function);
-        while (numLocals--)                                     // it seems locals need to init to zero (at least for optimized Wasm code) TODO: see if this is still true.
-            * (stack++) = 0;
+    m3stack_t stack = _sp + GetFunctionNumArgs (function);
+    while (numLocals--)                                     // it seems locals need to init to zero (at least for optimized Wasm code) TODO: see if this is still true.
+        * (stack++) = 0;
 
-        if (function->constants) {
-            memcpy (stack, function->constants, function->numConstants * sizeof (u64));
-        }
+    if (function->constants) {
+        memcpy (stack, function->constants, function->numConstants * sizeof (u64));
+    }
 
-        m3ret_t r = nextOp ();
+    m3ret_t r = nextOp ();
 
 #       if d_m3LogExec
-            u8 returnType = function->funcType->returnType;
+        u8 returnType = function->funcType->returnType;
 
-            char str [100] = { '!', 0 };
+        char str [100] = { '!', 0 };
 
-            if (not r)
-                SPrintArg (str, 99, _sp, function->funcType->returnType);
+        if (not r)
+            SPrintArg (str, 99, _sp, function->funcType->returnType);
 
-            m3log (exec, " exit  < %s %s %s   %s", function->name, returnType ? "->" : "", str, r ? r : "");
+        m3log (exec, " exit  < %s %s %s   %s", function->name, returnType ? "->" : "", str, r ? r : "");
 #       elif d_m3LogStackTrace
-            if (r)
-                printf (" ** %s  %p\n", function->name, _sp);
+        if (r)
+            printf (" ** %s  %p\n", function->name, _sp);
 #       endif
 
-        return r;
-    }
-    else return c_m3Err_trapStackOverflow;
+    return r;
 }
 
 

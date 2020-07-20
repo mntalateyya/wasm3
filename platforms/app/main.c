@@ -1,7 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+
+#ifdef WIN32
+#define access _access
+#define F_OK    0
+#else
 #include <unistd.h>
+#endif
 
 #include "m3.h"
 #include "m3_api_wasi.h"
@@ -85,7 +91,7 @@ void repl_free(IM3Runtime* runtime)
 M3Result repl_init(IM3Environment env, IM3Runtime* runtime)
 {
     repl_free(runtime);
-    *runtime = m3_NewRuntime (env, 8*1024, NULL);
+    *runtime = m3_NewRuntime (env, 64*1024, NULL);
     if (*runtime == NULL) {
         return "m3_NewRuntime failed";
     }

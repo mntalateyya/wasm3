@@ -3,11 +3,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <setjmp.h>
-#include <sys/time.h>
-
 #ifdef WIN32
 #include <windows.h>
 #else
+#include <sys/time.h>
 #include <pthread.h>
 #include <unistd.h>
 #endif
@@ -114,7 +113,7 @@ void *migration_clock(void *_ign) {
 void m3_migration_init(const char *stateFile) {
 	StateFile = stateFile;
 #ifdef WIN32
-	CreateThread(NULL, 0, migration_clock, NULL, 0, NULL);
+	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)migration_clock, NULL, 0, NULL);
 #else
 	pthread_t tid;
 	pthread_create(&tid, NULL, migration_clock, NULL);

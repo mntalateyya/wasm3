@@ -96,7 +96,7 @@ elseif(WIN32)
 
     # Uncomment this if you want to disassemble the release build,
     # for example: dumpbin /DISASM wasm3.exe /out:wasm3.S
-    #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG:FULL")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG:FULL")
 
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8388608") # stack size
   else()
