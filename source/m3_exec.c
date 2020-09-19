@@ -12,7 +12,7 @@
 
 
 static inline
-IM3Memory GetMemoryInfo (M3MemoryHeader * header)
+IM3Memory GetMemoryInfo (const M3MemoryHeader * header)
 {
     IM3Memory memory = & header->runtime->memory;
     
@@ -35,7 +35,6 @@ d_m3OpDef  (Call)
 {
     pc_t callPC                 = immediate (pc_t);
     i32 stackOffset             = immediate (i32);
-    IM3Memory memory            = GetMemoryInfo (_mem);
 
     _cs->pc = _pc;
     _cs->sp = _sp;
@@ -43,16 +42,10 @@ d_m3OpDef  (Call)
     _cs->fp = _fp0;
     _cs++;
 
-    m3stack_t sp = _sp + stackOffset;
+    _sp += stackOffset;
+    _pc = callPC;
+    return nextOp();
 
-    return Call (callPC, sp, _mem, d_m3OpDefaultArgs, _cs);
-
-    //if (r == 0)
-    //{
-    //    _mem = memory->mallocated;
-    //    return nextOp ();
-    //}
-    //else return r;
 }
 
 
@@ -199,7 +192,7 @@ d_m3OpDef  (Compile)
         // patch up compiled pc and call rewriten op_Call
         *((size_t *) --_pc) = (size_t) (function->compiled);
         --_pc;
-        result = nextOp ();
+        return nextOp ();
     }
     else ReportError2 (function, result);
 
@@ -230,7 +223,7 @@ d_m3OpDef  (Entry)
         memcpy (stack, function->constants, function->numConstants * sizeof (u64));
     }
 
-    m3ret_t r = nextOp ();
+    return nextOp ();
 
 #       if d_m3LogExec
         u8 returnType = function->funcType->returnType;
@@ -246,7 +239,7 @@ d_m3OpDef  (Entry)
             printf (" ** %s  %p\n", function->name, _sp);
 #       endif
 
-    return r;
+    //return r;
 }
 
 
