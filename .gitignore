@@ -12,3 +12,6 @@ __pycache__/
 .vscode
 tags
 .idea/
+**/.cxx/
+*.dat
+*.raw
