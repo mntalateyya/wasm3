@@ -235,7 +235,7 @@ M3Result  EvaluateExpression  (IM3Module i_module, void * o_expressed, u8 i_type
         {
             // TODO fix hacks
             M3MemoryHeader mem = {&runtime, 0, 0};
-            m3ret_t r = 0; jmp_start (m3code, stack, &mem, d_m3OpDefaultArgs, callStack);
+            m3ret_t r = 0; jmp_start (m3code, stack, callStack, d_m3OpDefaultArgs, &mem);
             result = runtime.runtimeError;
 
             if (r == 0 and not result)
@@ -611,7 +611,7 @@ M3Result  m3_CallWithArgs  (IM3Function i_function, uint32_t i_argc, const char 
         }
 
         m3StackCheckInit();
-        (jmp_start(i_function->compiled, stack, runtime->memory.mallocated, d_m3OpDefaultArgs, runtime->callStack));
+        (jmp_start(i_function->compiled, stack, runtime->callStack, d_m3OpDefaultArgs, runtime->memory.mallocated));
         // Todo catch exception removed, restore
 
 #if d_m3LogOutput

@@ -100,7 +100,7 @@ d_m3OpDef  (CallIndirect)
                 _cs->fp = _fp0;
                 _cs++;
 
-                return Call (function->compiled, sp, _mem, d_m3OpDefaultArgs, _cs);
+                return Call (function->compiled, sp, _cs, d_m3OpDefaultArgs, _mem);
 
                 //if (not r)
                 //{
