@@ -80,7 +80,7 @@ void build_fn_index(IM3Runtime runtime) {
 	qsort(fn_index, fn_count, sizeof(*fn_index), fidx_cmp);
 }
 
-void find_fn(pc_t pc, u32 *fn_id, u32 *offset) {
+void find_fn(pc_t pc, u64 *fn_id, u64 *offset) {
 	struct FnIndex *fn = &fn_index[0];
 	i32 lo = 0, hi = fn_count;
 	while (lo < hi) {
@@ -98,7 +98,7 @@ void find_fn(pc_t pc, u32 *fn_id, u32 *offset) {
 	}
 
 	*fn_id = fn->idx;
-	*offset = (i64)pc - (i64)fn->ptr;
+	*offset = (u64)pc - (u64)fn->ptr;
 }
 
 void *migration_clock(void *_ign) {
@@ -136,54 +136,44 @@ M3Result m3_dump_state(d_m3OpSig) {
 	long long start = millitime();
 
 	IM3Runtime runtime = _mem->runtime;
-	/*
-	printf("[dumping state]\n");
-	printf( "_pc:\t%p\n"
-	        "_sp:\t%p\n"
-	        "_mem:\t%p\n"
-			"_r0:\t%ld\n"
-			"_fp0:\t%lf\n"
-			"_cs:\t%p\n"
-			"stack:\t%p\n"
-			"callstack:\t%p\n",
-			d_m3OpAllArgs, runtime->stack, runtime->callStack);
-	*/
 
 	build_fn_index(runtime);	
 
-	FILE *out = fopen(StateFile, "w");
+	FILE *out = fopen(StateFile, "wb");
 
-	u32 fn_id, pc_offset, sp_offset;
-
+	u64 fn_id, pc_offset, sp_offset;
 	find_fn(_pc, &fn_id, &pc_offset);
 	fwrite(&fn_id, sizeof(fn_id), 1, out);
 	fwrite(&pc_offset, sizeof(pc_offset), 1, out);
 	
-	sp_offset = (i64)_sp - (i64)runtime->stack;
+	sp_offset = (u64)_sp - (u64)runtime->stack;
 	fwrite(&sp_offset, sizeof(sp_offset), 1, out);
 	// fwrite(&_mem, sizeof(_mem), 1, out);
 	fwrite(&_r0, sizeof(_r0), 1, out);
 	fwrite(&_fp0, sizeof(_fp0), 1, out);
-	u32 cs_size = _cs - runtime->callStack;
+	u64 cs_size = _cs - runtime->callStack;
 	fwrite(&cs_size, sizeof(cs_size), 1, out);
+
+	assert(sizeof(_r0) == 8 && sizeof(_fp0) == 8);
 
 	// value stack
 	m3reg_t *sp_end = (m3reg_t *)runtime->stack + runtime->numStackSlots;
-	while (sp_end > runtime->stack && !sp_end[-1])
+	while (sp_end > (m3reg_t*)runtime->stack && !sp_end[-1])
 		sp_end--;
-	u32 stack_size = sp_end - (m3reg_t *)runtime->stack;
-	fwrite(&stack_size, sizeof(u32), 1, out);
+	u64 stack_size = sp_end - (m3reg_t *)runtime->stack;
+	fwrite(&stack_size, sizeof(stack_size), 1, out);
 	fwrite(runtime->stack, sizeof(m3reg_t), stack_size, out);
 	
 	// memory
-	fwrite(&runtime->memory.numPages, sizeof(runtime->memory.numPages), 1, out);
+	u64 numpages = runtime->memory.numPages;
+	fwrite(&numpages, sizeof(numpages), 1, out);
 	fwrite(runtime->memory.mallocated+1,
 	       c_m3MemPageSize, runtime->memory.numPages, out);
 	
 	// call stack
 	_cs--;
 	while (_cs != runtime->callStack) {
-		u32 cs_fn_id, offset;
+		u64 cs_fn_id, offset;
 		find_fn(_cs->pc, &cs_fn_id, &offset);
 		_cs->fn_id = cs_fn_id;
 		_cs->pc_offset = offset;
@@ -191,17 +181,6 @@ M3Result m3_dump_state(d_m3OpSig) {
 		_cs--;
 	}
 	fwrite(runtime->callStack, sizeof(cs_frame), cs_size, out);
-
-	/*
-	printf(
-		"pc offset: %d\n"
-		"sp offset: %d\n"
-		"cs offset: %d\n",
-		pc_offset,
-		sp_offset,
-		cs_size
-	);
-	*/
 
 	printf("serialize-time: %lld\ntotal-size: %ld\nvcs-size: %lld\n",
 		millitime()-start, ftell(out), cs_size);
@@ -222,28 +201,27 @@ M3Result m3_resume_state(IM3Runtime runtime) {
 	f64 _fp0;
 	cs_frame * _cs;
 
-	u32 fn_id, pc_offset, sp_offset, cs_size;
+	u64 fn_id, pc_offset, sp_offset, cs_size;
 
-	FILE *f = fopen(StateFile, "r");
+	FILE *f = fopen(StateFile, "rb");
 
 	// load basic registers
 	fread(&fn_id, sizeof(fn_id), 1, f);
 	fread(&pc_offset, sizeof(pc_offset), 1, f);
 	fread(&sp_offset, sizeof(sp_offset), 1, f);
-	_sp = (char *)runtime->stack + sp_offset;
-	// fread(&ignore, sizeof(ignore), 1, f);
+	_sp = (u64*)((u64)runtime->stack + sp_offset);
 	fread(&_r0, sizeof(_r0), 1, f);
 	fread(&_fp0, sizeof(_fp0), 1, f);
 	fread(&cs_size, sizeof(cs_size), 1, f);
 
 	// load stack
-	u32 stack_size;
+	u64 stack_size;
 	fread(&stack_size, sizeof(stack_size), 1, f);
 	assert(stack_size <= runtime->numStackSlots);
 	fread(runtime->stack, sizeof(m3reg_t), stack_size, f);
 
 	// load memory
-	u32 mem_pages;
+	u64 mem_pages;
 	fread(&mem_pages, sizeof(mem_pages), 1, f);
 	if (mem_pages > runtime->memory.numPages) {
 		ResizeMemory(runtime, mem_pages);
@@ -262,28 +240,16 @@ M3Result m3_resume_state(IM3Runtime runtime) {
 	for (cs_frame * cf = runtime->callStack + 1; cf != _cs; cf++) {
 		if (not functions[cf->fn_id].compiled)
         	result = Compile_Function(functions+cf->fn_id);
-		cf->pc = (u64)functions[cf->fn_id].compiled+cf->pc_offset;
-		cf->sp = (char *)runtime->stack + cf->sp_offset;
+		cf->pc = (pc_t)((u64)functions[cf->fn_id].compiled+cf->pc_offset);
+		cf->sp = (u64*)((u64)runtime->stack + cf->sp_offset);
 	}
 	if (not functions[fn_id].compiled)
 		result = Compile_Function(functions+fn_id);
-	_pc = (u64)functions[fn_id].compiled + pc_offset;
-
-	/*
-	printf("[resumed state]\n");
-	printf( "_pc: %p\n"
-	        "_sp: %p\n"
-	        "_mem: %p\n"
-			"_r0: %ld\n"
-			"_fp0: %lf\n"
-			"_cs: %p\n"
-			"stack: %p\n",
-			d_m3OpAllArgs, runtime->stack);
-	*/
+	_pc = &functions[fn_id].compiled[pc_offset/sizeof(pc_t)];
 	
 	printf("deserial-time: %lld\n", millitime()-start);
 	jmp_start(d_m3OpAllArgs);
 	u64 * stack = runtime->stack;
-	printf("Result: [%ld]\n", stack[0]);
+	printf("Result: [%lld]\n", stack[0]);
 	return NULL;
 }
