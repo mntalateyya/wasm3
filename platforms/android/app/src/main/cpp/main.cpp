@@ -1,23 +1,23 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <time.h>
+#include <cstdlib>
+#include <cstdio>
+#include <ctime>
+#include <thread>
 
-#include "m3/m3.h"
-#include "m3/m3_env.h"
-#include "m3/m3_config.h"
-#include "m3/m3_api_wasi.h"
-#include "m3/m3_api_libc.h"
-
-#include "m3/extra/fib32.wasm.h"
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <unistd.h>
 
 #include <jni.h>
 #include <android/log.h>
 #include <android/native_activity.h>
 #include <android_native_app_glue.h>
 
-#include <thread>
-#include <unistd.h>
-
+#include "m3/m3.h"
+#include "m3/m3_env.h"
+#include "m3/m3_config.h"
+#include "m3/m3_api_wasi.h"
+#include "m3/m3_api_libc.h"
 
 #define FATAL(msg, ...) { __android_log_print(ANDROID_LOG_DEBUG, "Fatal", msg "\n", ##__VA_ARGS__); return; }
 
@@ -32,11 +32,11 @@ void run_wasm(android_app *pApp) {
     dup2(pfd[1], 1);
     dup2(pfd[1], 2);
     close(pfd[1]);
-    char res_buf[128];
+    char res_buf[256];
 
     AAsset *asset = AAssetManager_open(
             pApp->activity->assetManager,
-            "matmul2.wasm",
+            "coremark-wasi.wasm",
             AASSET_MODE_STREAMING);
     const uint8_t *wasm = (const uint8_t *)AAsset_getBuffer(asset);
     size_t fsize = AAsset_getLength(asset);
@@ -81,9 +81,56 @@ void run_wasm(android_app *pApp) {
     close(1);
     close(2);
     __android_log_print(ANDROID_LOG_DEBUG, "LOG", "closed stdout/err\n");
-    read(pfd[0], res_buf, 127);
-    res_buf[127] = '\0';
+    size_t bytes = read(pfd[0], res_buf, 255);
+    res_buf[bytes] = '\0';
     __android_log_print(ANDROID_LOG_DEBUG, "OUTPUT", "-start\n%s\nend-\n", res_buf);
+}
+
+void rcv_code() {
+    int sockfd, connfd, len;
+    sockaddr_in servaddr, cli;
+
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd == -1) {
+        __android_log_print(ANDROID_LOG_DEBUG, "LOG", "socket creation failed...\n");
+        return;
+    }
+    else
+        __android_log_print(ANDROID_LOG_DEBUG, "LOG", "Socket successfully created..\n");
+    bzero(&servaddr, sizeof(servaddr));
+
+    // assign IP, PORT
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    servaddr.sin_port = htons(8000);
+
+    // Binding newly created socket to given IP and verification
+    if ((bind(sockfd, (sockaddr*)&servaddr, sizeof(servaddr))) != 0) {
+        __android_log_print(ANDROID_LOG_DEBUG, "LOG", "socket bind failed...\n");
+        return;
+    } else {
+        __android_log_print(ANDROID_LOG_DEBUG, "LOG", "Socket successfully binded..\n");
+    }
+
+    // Now server is ready to listen and verification
+    if ((listen(sockfd, 5)) != 0) {
+        __android_log_print(ANDROID_LOG_DEBUG, "LOG", "Listen failed...\n");
+        return;
+    } else {
+        __android_log_print(ANDROID_LOG_DEBUG, "LOG", "Server listening..\n");
+    }
+
+    len = sizeof(cli);
+
+    // Accept the data packet from client and verification
+    connfd = accept(sockfd, (sockaddr*)&cli, (socklen_t *)&len);
+    if (connfd < 0) {
+        __android_log_print(ANDROID_LOG_DEBUG, "LOG", "server acccept failed...\n");
+        return;
+    } else {
+        __android_log_print(ANDROID_LOG_DEBUG, "LOG", "server acccept the client...\n");
+    }
+
 }
 
 void android_main(android_app *pApp) {

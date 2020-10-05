@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.4.1)
 
-add_definitions(-DANDROID -Wno-format-security -O3
+add_definitions(-DANDROID -Wno-format-security -O1 -g
                 -Dd_m3AllocateLinearMemory=1 -Dd_m3HasWASI
                 #-fno-optimize-sibling-calls
                 -fstrict-aliasing -flto -fno-fat-lto-objects)
