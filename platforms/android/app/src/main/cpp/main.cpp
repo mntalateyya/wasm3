@@ -25,8 +25,7 @@ extern "C" {
 void handle_cmd(struct android_app *pApp, int32_t cmd) {
 }
 
-
-void run_wasm(android_app *pApp) {
+void run_function(android_app *pApp, char *filename, char *funcname, int argc, char *argv[]) {
     int pfd[2];
     pipe(pfd);
     dup2(pfd[1], 1);
@@ -36,7 +35,7 @@ void run_wasm(android_app *pApp) {
 
     AAsset *asset = AAssetManager_open(
             pApp->activity->assetManager,
-            "coremark-wasi.wasm",
+            filename,
             AASSET_MODE_STREAMING);
     const uint8_t *wasm = (const uint8_t *)AAsset_getBuffer(asset);
     size_t fsize = AAsset_getLength(asset);
@@ -69,10 +68,10 @@ void run_wasm(android_app *pApp) {
 
 
     IM3Function f;
-    result = m3_FindFunction(&f, runtime, "_start");
+    result = m3_FindFunction(&f, runtime, funcname);
     if (result) FATAL("m3_FindFunction: %s", result);
 
-    result = m3_Call(f);
+    result = m3_CallWithArgs(f, argc, argv);
     if (result) FATAL("m3_Call: %s", result);
 
     long value = *(uint64_t *) (runtime->stack);
@@ -84,6 +83,21 @@ void run_wasm(android_app *pApp) {
     size_t bytes = read(pfd[0], res_buf, 255);
     res_buf[bytes] = '\0';
     __android_log_print(ANDROID_LOG_DEBUG, "OUTPUT", "-start\n%s\nend-\n", res_buf);
+}
+
+void run_wasm(android_app *pApp) {
+    run_function(pApp, "coremark-wasi.wasm", "_start", 0, NULL);
+
+    char *argv[2] = {"36"};
+    run_function(pApp, "fib.wasm", "fib", 1, argv);
+
+    argv[0] = "isort.wasm";
+    argv[1] = "10000";
+    run_function(pApp, "isort.wasm", "mymain", 2, argv);
+
+    argv[0] = "matmul.wasm";
+    argv[1] = "500";
+    run_function(pApp, "matmul.wasm", "mymain", 2, argv);
 }
 
 void rcv_code() {

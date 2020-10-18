@@ -1,11 +1,11 @@
 /build*
-/source-*
 test/core
 test/proposals
 test/*.log
 test/tailcall/*.S
 node_modules/
 __pycache__/
+plot/
 .project
 .cproject
 .settings
@@ -13,5 +13,4 @@ __pycache__/
 tags
 .idea/
 **/.cxx/
-*.dat
-*.raw
+platforms/android/app/src/main/assets/
