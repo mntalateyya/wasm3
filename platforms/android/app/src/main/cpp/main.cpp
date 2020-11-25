@@ -86,18 +86,17 @@ void run_function(android_app *pApp, char *filename, char *funcname, int argc, c
 }
 
 void run_wasm(android_app *pApp) {
-    run_function(pApp, "coremark-wasi.wasm", "_start", 0, NULL);
-
-    char *argv[2] = {"36"};
-    run_function(pApp, "fib.wasm", "fib", 1, argv);
-
-    argv[0] = "isort.wasm";
-    argv[1] = "10000";
-    run_function(pApp, "isort.wasm", "mymain", 2, argv);
-
-    argv[0] = "matmul.wasm";
-    argv[1] = "500";
-    run_function(pApp, "matmul.wasm", "mymain", 2, argv);
+    char *argv = "coremark-wasi.wasm";
+    run_function(pApp, "coremark-wasi.wasm", "_start", 1, &argv);
+//
+//    argv = "40";
+//    run_function(pApp, "fib.wasm", "fib", 1, &argv);
+//
+//    argv = "20000";
+//    run_function(pApp, "isort.wasm", "mymain", 1, &argv);
+//
+//    argv = "600";
+//    run_function(pApp, "matmul.wasm", "mymain", 1, &argv);
 }
 
 void rcv_code() {

@@ -210,9 +210,6 @@ d_m3OpDef  (Entry)
     IM3Function function = immediate (IM3Function);
     function->hits++;                                       m3log (exec, " enter %p > %s %s", _pc - 2, function->name ? function->name : ".unnamed", SPrintFunctionArgList (function, _sp));
 
-    if (strcmp(function->name, "long std::__2::__libcpp_atomic_refcount_increment<long>(long&)") == 0 &&
-        function->hits > 48)
-        printf("gotcha\n");
     u32 numLocals = function->numLocals;
 
     m3stack_t stack = _sp + GetFunctionNumArgs (function);
