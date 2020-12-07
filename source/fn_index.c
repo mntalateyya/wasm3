@@ -1,8 +1,10 @@
 #include "fn_index.h"
 
 static struct PgIndex {
-    void    *address;
-    u32     page_num;
+    void    		* address;
+	struct PgIndex 	* next;
+    u32     		page_num;
+	u32				indegree;
 } *pg_index;
 
 static size_t fn_count;
@@ -20,7 +22,16 @@ static int fidx_cmp(const void *ptr1, const void *ptr2) {
 }
 
 M3Result build_pg_index(IM3Runtime runtime) {
-    pg_count = runtime->numActiveCodePages;
+    u32 pg_count = runtime->numCodePages;
+    pg_index = malloc(sizeof(*pg_index) * pg_count);
+    u32 i = 0;
+    for (IM3CodePage pg = runtime->pagesFull; pg; pg = pg->info.next) {
+        pg_index[i].page_num = i;
+		pg_index[i].address = pg->code;
+		pg_index[i].indegree = 0;
+		pg_index[i].next = NULL;
+		i++;
+    
 }
 
 // works for single module only

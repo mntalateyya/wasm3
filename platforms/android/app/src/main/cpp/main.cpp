@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
 #include <jni.h>
 #include <android/log.h>
@@ -99,6 +100,78 @@ void run_wasm(android_app *pApp) {
 //    run_function(pApp, "matmul.wasm", "mymain", 1, &argv);
 }
 
+void run_coremark(android_app *app) {
+    AAsset *asset = AAssetManager_open(
+            app->activity->assetManager,
+            "wasmtime",
+            AASSET_MODE_STREAMING);
+    const uint8_t *native = (const uint8_t *)AAsset_getBuffer(asset);
+    size_t fsize = AAsset_getLength(asset);
+    FILE *f = fopen("/data/data/com.example.hellojni/wasmtime", "w");
+    fwrite(native, fsize, 1, f);
+    fclose(f);
+
+    asset = AAssetManager_open(
+            app->activity->assetManager,
+            "coremark-wasi.wasm",
+            AASSET_MODE_STREAMING);
+    native = (const uint8_t *)AAsset_getBuffer(asset);
+    fsize = AAsset_getLength(asset);
+    f = fopen("/data/data/com.example.hellojni/coremark-wasi.wasm", "w");
+    fwrite(native, fsize, 1, f);
+    fclose(f);
+
+    int pfd[2];
+    pipe(pfd);
+
+    char res_buf[256];
+
+    int pid;
+    if ((pid = fork()) == 0) {
+        if ((pid = fork()) == 0) {
+            close(pfd[0]);
+            close(pfd[1]);
+            char *argv[] = {"/system/bin/chmod",
+                            "744",
+                            "/data/data/com.example.hellojni/wasmtime",
+                            NULL};
+            execv(argv[0], argv);
+            __android_log_print(ANDROID_LOG_DEBUG, "FATAL", "execv chmod");
+        } else {
+            wait(NULL);
+            dup2(pfd[1], 1);
+            dup2(pfd[1], 2);
+            close(pfd[0]);
+            close(pfd[1]);
+            char *argv[] = {"/data/data/com.example.hellojni/wasmtime",
+                            //"/data/data/com.example.hellojni/coremark-wasi.wasm",
+                            NULL};
+            if ((f = fopen(argv[0], "r")) == NULL) {
+                char msg[] = "wasmtime file doesn't exist";
+                write(1, msg, sizeof(msg));
+            }
+            else {
+                fseek(f, 0L, SEEK_END);
+                size_t size = ftell(f);
+                char msg[32];
+                sprintf(msg, "size: %ld\n", size);
+                write(1, msg, strlen(msg));
+                fclose(f);
+            }
+            write(1, "Exec wsmtime\n", 13);
+            execv(argv[0], argv);
+            int e = errno;
+            perror("wasmtime exec failed");
+        }
+    } else {
+        close(pfd[1]);
+        wait(NULL);
+        size_t bytes = read(pfd[0], res_buf, 255);
+        res_buf[bytes] = '\0';
+        __android_log_print(ANDROID_LOG_DEBUG, "OUTPUT", "%d -start\n%s\nend-\n", bytes, res_buf);
+    }
+}
+
 void rcv_code() {
     int sockfd, connfd, len;
     sockaddr_in servaddr, cli;
@@ -148,7 +221,7 @@ void rcv_code() {
 
 void android_main(android_app *pApp) {
 
-    std::thread(run_wasm, pApp).detach();
+    std::thread(run_coremark, pApp).detach();
     pApp->onAppCmd = handle_cmd;
     int events;
     struct android_poll_source *pSource;
