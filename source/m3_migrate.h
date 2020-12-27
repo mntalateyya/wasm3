@@ -5,7 +5,7 @@
 #include "m3_exec_defs.h"
 
 
-void jmp_start(d_m3OpSig);
+m3ret_t jmp_start(d_m3OpSig);
 void jump_return(d_m3OpSig);
 void m3_migration_init(const char*);
 bool m3_migration_flag();

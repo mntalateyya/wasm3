@@ -110,6 +110,13 @@ M3Result  ParseSection_Function  (IM3Module io_module, bytes_t i_bytes, cbytes_t
     u32 numFunctions;
 _   (ReadLEB_u32 (& numFunctions, & i_bytes, i_end));                               m3log (parse, "** Function [%d]", numFunctions);
 
+    io_module->fnTableSize = 0;
+    io_module->fnTableCap = numFunctions+1;
+    io_module->fnTable = malloc(sizeof(MGFnTableEntry) * io_module->fnTableCap);
+    io_module->bridgeCap = 4;
+    io_module->bridgeCount = 0;
+    io_module->bridges = malloc(sizeof(pc_t) * io_module->bridgeCap);
+
     for (u32 i = 0; i < numFunctions; ++i)
     {
         u32 funcTypeIndex;

@@ -42,6 +42,8 @@ typedef struct M3Function
 
     u32                     hits;
 
+    u32                     idx;        // index in module
+
     IM3FuncType             funcType;
 
     IM3Operation            callOp;
@@ -131,23 +133,28 @@ M3Global;
 typedef M3Global *          IM3Global;
 
 
+typedef struct FnTableEntry {
+	pc_t    ptr;
+	u32     idx;
+} MGFnTableEntry;
+
 //---------------------------------------------------------------------------------------------------------------------------------
 typedef struct M3Module                 // TODO add env owner? also discriminates stack/heap
 {
     struct M3Runtime *      runtime;
 
-    cstr_t                  name;
-
-    u32                     numFuncTypes;
-    M3FuncType *            funcTypes;
-
-    u32                     numImports;
-    IM3Function *           imports;            // notice: "I" prefix. imports are pointers to functions in another module.
-
     u32                     numFunctions;
     M3Function *            functions;
 
     i32                     startFunction;
+
+    u32                     numFuncTypes;
+    M3FuncType *            funcTypes;
+
+    cstr_t                  name;
+
+    u32                     numImports;
+    IM3Function *           imports;            // notice: "I" prefix. imports are pointers to functions in another module.
 
     u32                     numDataSegments;
     M3DataSegment *         dataSegments;
@@ -167,6 +174,16 @@ typedef struct M3Module                 // TODO add env owner? also discriminate
 	bool					memoryImported;
 	
 //  m3reg_t *               globalMemory;
+
+
+// to search function during migration
+    u32                     fnTableCap;
+    u32                     fnTableSize;
+    MGFnTableEntry *        fnTable;
+
+    u32                     bridgeCount;
+    u32                     bridgeCap;
+    pc_t *                  bridges;
 
     struct M3Module *       next;
 }

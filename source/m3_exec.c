@@ -9,6 +9,7 @@
 #include "m3_env.h"
 #include "m3_exec.h"
 #include "m3_compile.h"
+#include "fn_index.h"
 
 
 static inline
@@ -44,6 +45,9 @@ d_m3OpDef  (Call)
 
     _sp += stackOffset;
     _pc = callPC;
+    if (m3_migration_flag()) {
+		m3_dump_state(d_m3OpAllArgs);
+    }
     return nextOp();
 
 }
@@ -100,7 +104,14 @@ d_m3OpDef  (CallIndirect)
                 _cs->fp = _fp0;
                 _cs++;
 
-                return Call (function->compiled, sp, _cs, d_m3OpDefaultArgs, _mem);
+                _pc = function->compiled;
+                _sp = sp;
+				if (m3_migration_flag()) {
+					m3_dump_state(d_m3OpAllArgs);
+				}
+                return nextOp();
+
+                //return Call (function->compiled, sp, _cs, d_m3OpDefaultArgs, _mem);
 
                 //if (not r)
                 //{
@@ -123,15 +134,17 @@ d_m3OpDef  (CallRawFunction)
     IM3Runtime runtime = GetRuntime (_mem);
     
     m3ret_t possible_trap = call (runtime, _sp, m3MemData(_mem));
-    if (possible_trap)
+    if (possible_trap) {
+        printf("trap: %p\n", call);
         return possible_trap;
-    else
-        _cs--;
-        _pc = _cs->pc;
-        _sp = _cs->sp;
-        _r0 = _cs->r;
-        _fp0 = _cs->fp;
-        return nextOp();
+    }
+
+    _cs--;
+    _pc = _cs->pc;
+    _sp = _cs->sp;
+    _r0 = _cs->r;
+    _fp0 = _cs->fp;
+    return nextOp();
     
 }
 

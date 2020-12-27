@@ -33,7 +33,19 @@ void usleep(__int64 usec)
 
 static const char *StateFile = NULL;
 static volatile bool migration_flag = false;
+static long long wake_up;
 static jmp_buf jmp_env;
+
+// https://stackoverflow.com/a/44896326/7119758
+long long millitime(void) {
+#ifdef WIN32
+	return GetTickCount();
+#else
+	struct timeval tv;
+    gettimeofday(&tv,NULL);
+    return (((long long)tv.tv_sec)*1000000) + tv.tv_usec;
+#endif
+}
 
 bool m3_migration_flag() {
 	return migration_flag;
@@ -43,26 +55,28 @@ void jump_return(d_m3OpSig) {
 	longjmp(jmp_env, 1);
 }
 
-void jmp(d_m3OpSig) {
+m3ret_t jmp(d_m3OpSig) {
 	if (setjmp(jmp_env) == 0) {
-		Call(d_m3OpAllArgs);
+		return Call(d_m3OpAllArgs);
 	}
+	return NULL;
 }
 
-void jmp_start(d_m3OpSig) {
+m3ret_t jmp_start(d_m3OpSig) {
 	IM3Runtime runtime = _mem->runtime;
 	void *ptr = jump_return;
 	runtime->callStack[0].pc = &ptr;
 	if (_cs == runtime->callStack)
 		_cs++;
-	jmp(d_m3OpAllArgs);
+	return jmp(d_m3OpAllArgs);
 }
 
 void *migration_clock(void *_ign) {
 	char *tosleep = getenv("SLEEP");
 	int i_tosleep = atoi(tosleep);
 	usleep(i_tosleep);
-	printf("[migration thread woke up]\n");
+	fprintf(stderr, "[migration thread woke up]\n");
+	wake_up = millitime();
 	migration_flag = true;
 	return NULL;
 }
@@ -77,29 +91,18 @@ void m3_migration_init(const char *stateFile) {
 #endif
 }
 
-// https://stackoverflow.com/a/44896326/7119758
-long long millitime(void) {
-#ifdef WIN32
-	return GetTickCount();
-#else
-	struct timeval tv;
-    gettimeofday(&tv,NULL);
-    return (((long long)tv.tv_sec)*1000000) + tv.tv_usec;
-#endif
-}
-
 M3Result m3_dump_state(d_m3OpSig) {
 
 	long long start = millitime();
-
+	fprintf(stderr, "reaction time: %lld\n", start - wake_up);
 	IM3Runtime runtime = _mem->runtime;
 
-	build_fn_index(runtime);	
+	build_fn_index(&runtime->modules[0]);	
 
 	FILE *out = fopen(StateFile, "wb");
 
 	u64 fn_id, pc_offset, sp_offset;
-	find_fn(_pc, &fn_id, &pc_offset);
+	find_fn_and_offset(&runtime->modules[0], _pc, &fn_id, &pc_offset);
 	fwrite(&fn_id, sizeof(fn_id), 1, out);
 	fwrite(&pc_offset, sizeof(pc_offset), 1, out);
 	
@@ -111,8 +114,6 @@ M3Result m3_dump_state(d_m3OpSig) {
 	u64 cs_size = _cs - runtime->callStack;
 	fwrite(&cs_size, sizeof(cs_size), 1, out);
 
-	assert(sizeof(_r0) == 8 && sizeof(_fp0) == 8);
-
 	// value stack
 	m3reg_t *sp_end = (m3reg_t *)runtime->stack + runtime->numStackSlots;
 	while (sp_end > (m3reg_t*)runtime->stack && !sp_end[-1])
@@ -120,22 +121,30 @@ M3Result m3_dump_state(d_m3OpSig) {
 	u64 stack_size = sp_end - (m3reg_t *)runtime->stack;
 	fwrite(&stack_size, sizeof(stack_size), 1, out);
 	fwrite(runtime->stack, sizeof(m3reg_t), stack_size, out);
-	
+
 	// memory
 	u64 numpages = runtime->memory.numPages;
 	fwrite(&numpages, sizeof(numpages), 1, out);
 	fwrite(runtime->memory.mallocated+1,
 	       c_m3MemPageSize, runtime->memory.numPages, out);
+
+	u64 numGlobals = runtime->modules[0].numGlobals;
+	fwrite(&numGlobals, sizeof(numGlobals), 1, out);
+	for (u64 i = 0; i < numGlobals; i++)
+	{
+		fwrite(&runtime->modules[0].globals[i].intValue, sizeof(i64), 1, out);
+	}
+	
 	
 	// call stack
-	_cs--;
-	while (_cs != runtime->callStack) {
+	cs_frame *cs = _cs-1;
+	while (cs != runtime->callStack) {
 		u64 cs_fn_id, offset;
-		find_fn(_cs->pc, &cs_fn_id, &offset);
-		_cs->fn_id = cs_fn_id;
-		_cs->pc_offset = offset;
-		_cs->sp_offset = (i64)_cs->sp - (i64)runtime->stack;
-		_cs--;
+		find_fn_and_offset(&runtime->modules[0], cs->pc, &cs_fn_id, &offset);
+		cs->fn_id = cs_fn_id;
+		cs->pc_offset = offset;
+		cs->sp_offset = (i64)cs->sp - (i64)runtime->stack;
+		cs--;
 	}
 	fwrite(runtime->callStack, sizeof(cs_frame), cs_size, out);
 
@@ -184,8 +193,15 @@ M3Result m3_resume_state(IM3Runtime runtime) {
 		ResizeMemory(runtime, mem_pages);
 	}
 	fread(runtime->memory.mallocated+1,
-	      mem_pages * c_m3MemPageSize, 1, f);
+	      c_m3MemPageSize, mem_pages, f);
 	_mem = runtime->memory.mallocated;
+
+	u64 numGlobals;
+	fread(&numGlobals, sizeof(numGlobals), 1, f);
+	assert(numGlobals == runtime->modules[0].numGlobals);
+	for (u64 i = 0; i < numGlobals; i++) {
+		fread(&runtime->modules[0].globals[i].intValue, sizeof(i64), 1, f);
+	}
 
 	// load cs & call stack
 	assert(cs_size <= runtime->callStackSize);
@@ -197,16 +213,23 @@ M3Result m3_resume_state(IM3Runtime runtime) {
 	for (cs_frame * cf = runtime->callStack + 1; cf != _cs; cf++) {
 		if (not functions[cf->fn_id].compiled)
         	result = Compile_Function(functions+cf->fn_id);
-		cf->pc = (pc_t)((u64)functions[cf->fn_id].compiled+cf->pc_offset);
 		cf->sp = (u64*)((u64)runtime->stack + cf->sp_offset);
 	}
 	if (not functions[fn_id].compiled)
 		result = Compile_Function(functions+fn_id);
-	_pc = &functions[fn_id].compiled[pc_offset/sizeof(pc_t)];
+	build_fn_index(&runtime->modules[0]);
+	for (cs_frame * cf = runtime->callStack + 1; cf != _cs; cf++) {
+		cf->pc = goto_fn_offset(&runtime->modules[0], cf->fn_id, cf->pc_offset);
+	}
+	_pc = goto_fn_offset(&runtime->modules[0], fn_id, pc_offset);
 	
 	printf("deserial-time: %lld\n", millitime()-start);
-	jmp_start(d_m3OpAllArgs);
+	m3ret_t err = jmp_start(d_m3OpAllArgs);
+	if (err) {
+		fprintf(stderr, "ERROR: %s\n", err);
+		return NULL;
+	}
 	u64 * stack = runtime->stack;
-	printf("Result: [%lld]\n", stack[0]);
+	fprintf (stderr, "[Result]: %lu\n",  stack[0]);
 	return NULL;
 }

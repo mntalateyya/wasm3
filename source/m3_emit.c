@@ -25,6 +25,12 @@ M3Result  EnsureCodePageNumLines  (IM3Compilation o, u32 i_numLines)
         {
             d_m3Assert (NumFreeLines (o->page) >= 2);
             m3log (emit, "bridging new code page from: %d %p (free slots: %d) to: %d", o->page->info.sequence, GetPC (o), NumFreeLines (o->page), page->info.sequence);
+
+            if (o->module->bridgeCap == o->module->bridgeCount) {
+                o->module->bridgeCap = o->module->bridgeCap * 3/2;
+                o->module->bridges = realloc(o->module->bridges, o->module->bridgeCap * sizeof(pc_t));
+            }
+            o->module->bridges[o->module->bridgeCount++] = GetPagePC(o->page);
             
             EmitWord (o->page, op_Bridge);
             EmitWord (o->page, GetPagePC (page));
@@ -32,6 +38,13 @@ M3Result  EnsureCodePageNumLines  (IM3Compilation o, u32 i_numLines)
             ReleaseCodePage (o->runtime, o->page);
 
             o->page = page;
+
+            if (o->module->fnTableCap == o->module->fnTableSize) {
+                o->module->fnTableCap = o->module->fnTableCap * 3/2 + 1;
+                o->module->fnTable = realloc(o->module->fnTable, o->module->fnTableCap * sizeof(MGFnTableEntry));
+            }
+            o->module->fnTable[o->module->fnTableSize++] = 
+                (MGFnTableEntry){.ptr = GetPagePC (page), .idx = o->function->idx};
         }
         else result = c_m3Err_mallocFailedCodePage;
     }

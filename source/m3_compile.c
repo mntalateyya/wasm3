@@ -2127,6 +2127,15 @@ _           (m3Alloc (& io_function->constants, u64, numConstants));
     
     ReleaseCompilationCodePage (o);
 
+    if (io_function->module->fnTableCap == io_function->module->fnTableSize) {
+      io_function->module->fnTableCap = io_function->module->fnTableCap * 3 / 2 + 1;
+      io_function->module->fnTable = realloc(
+          io_function->module->fnTable, 
+          io_function->module->fnTableCap * sizeof(MGFnTableEntry));
+    }
+    io_function->module->fnTable[io_function->module->fnTableSize++] = 
+                (MGFnTableEntry){.ptr = io_function->compiled, .idx = io_function->idx};
+
     return result;
 }
 
