@@ -170,6 +170,8 @@ void print_usage() {
 int  main  (int i_argc, const char* i_argv[])
 {
     M3Result result = c_m3Err_none;
+
+    fprintf(stderr, "start: %ld\n", microtime());
     
     IM3Environment env = m3_NewEnvironment ();
     IM3Runtime runtime = NULL;

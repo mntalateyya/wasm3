@@ -4,7 +4,7 @@
 //#include "m3.h"
 #include "m3_exec_defs.h"
 
-
+long long microtime(void);
 m3ret_t jmp_start(d_m3OpSig);
 void jump_return(d_m3OpSig);
 void m3_migration_init(const char*);

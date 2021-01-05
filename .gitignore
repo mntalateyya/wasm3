@@ -1,4 +1,5 @@
 /build*
+/eval/data
 test/core
 test/proposals
 test/*.log

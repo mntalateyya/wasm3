@@ -37,7 +37,7 @@ static long long wake_up;
 static jmp_buf jmp_env;
 
 // https://stackoverflow.com/a/44896326/7119758
-long long millitime(void) {
+long long microtime(void) {
 #ifdef WIN32
 	return GetTickCount();
 #else
@@ -76,7 +76,7 @@ void *migration_clock(void *_ign) {
 	int i_tosleep = atoi(tosleep);
 	usleep(i_tosleep);
 	fprintf(stderr, "[migration thread woke up]\n");
-	wake_up = millitime();
+	wake_up = microtime();
 	migration_flag = true;
 	return NULL;
 }
@@ -93,7 +93,7 @@ void m3_migration_init(const char *stateFile) {
 
 M3Result m3_dump_state(d_m3OpSig) {
 
-	long long start = millitime();
+	long long start = microtime();
 	fprintf(stderr, "reaction time: %lld\n", start - wake_up);
 	IM3Runtime runtime = _mem->runtime;
 
@@ -149,14 +149,14 @@ M3Result m3_dump_state(d_m3OpSig) {
 	fwrite(runtime->callStack, sizeof(cs_frame), cs_size, out);
 
 	printf("serialize-time: %lld\ntotal-size: %ld\nvcs-size: %lld\n",
-		millitime()-start, ftell(out), cs_size);
+		microtime()-start, ftell(out), cs_size);
 	fclose(out);
 	exit(0);
 }
 
 // TODO: worry about allocations when loading memory and stack 
 M3Result m3_resume_state(IM3Runtime runtime) {
-	long long start = millitime();
+	long long start = microtime();
 
 	M3Result result = c_m3Err_none;
 
@@ -223,7 +223,7 @@ M3Result m3_resume_state(IM3Runtime runtime) {
 	}
 	_pc = goto_fn_offset(&runtime->modules[0], fn_id, pc_offset);
 	
-	printf("deserial-time: %lld\n", millitime()-start);
+	printf("deserial-time: %lld\n", microtime()-start);
 	m3ret_t err = jmp_start(d_m3OpAllArgs);
 	if (err) {
 		fprintf(stderr, "ERROR: %s\n", err);

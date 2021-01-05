@@ -93,8 +93,6 @@ void find_fn_and_offset(IM3Module module, pc_t pc, u64 *fn_id, u64 *offset) {
 		}
 	}
 
-	fprintf(stderr, "fn: %.10s \t\t [%d]\t @ %lu : \t %p\n", module->functions[fn->idx].name, fn->idx, tmp_off, *pc);
-
 	*fn_id = fn->idx;
 	*offset = tmp_off;
 }
@@ -112,7 +110,6 @@ pc_t goto_fn_offset(IM3Module module, u64 fn_id, u64 offset)
 			offset -= *next_bridge - pc;
 			pc = (*next_bridge)[1];
 		} else {
-			fprintf(stderr, "fn: %.10s \t\t @ %lu : \t %p\n", module->functions[fn_id].name, o2, pc[offset]);
 			return pc + offset;
 		}
 	}

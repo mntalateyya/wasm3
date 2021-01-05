@@ -611,6 +611,7 @@ M3Result  m3_CallWithArgs  (IM3Function i_function, uint32_t i_argc, const char 
         }
 
         m3StackCheckInit();
+        fprintf(stderr, "init done: %ld\n", microtime());
         (jmp_start(i_function->compiled, stack, runtime->callStack, d_m3OpDefaultArgs, runtime->memory.mallocated));
         // Todo catch exception removed, restore
 
