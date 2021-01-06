@@ -1,5 +1,5 @@
 /build*
-/eval/data
+/eval
 test/core
 test/proposals
 test/*.log
